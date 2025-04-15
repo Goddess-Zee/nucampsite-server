@@ -1,146 +1,140 @@
 const express = require('express');
 const campsiteRouter = express.Router();
 
-const express = require('express');
 const Campsite = require('../models/campsite');
+const authenticate = require('../authenticate');
 
+// Route for all comments on a specific campsite
 campsiteRouter.route('/:campsiteId/comments')
 .get((req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
         if (campsite) {
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.json(campsite.comments);
+            res.status(200).json(campsite.comments);
         } else {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         }
     })
-    .catch(err => next(err));
+    .catch(err => next(err))
 })
-.post((req, res, next) => {
+.post(authenticate.verifyUser, (req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
         if (campsite) {
+            req.body.author = req.user._id; // associate comment with user
             campsite.comments.push(req.body);
-            campsite.save()
-            .then(campsite => {
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.json(campsite);
-            })
-            .catch(err => next(err));
+            return campsite.save();
         } else {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         }
     })
+    .then(campsite => {
+        res.status(200).json(campsite);
+    })
     .catch(err => next(err));
 })
-.put((req, res) => {
-    res.statusCode = 403;
-    res.end(`PUT operation not supported on /campsites/${req.params.campsiteId}/comments`);
+.put(authenticate.verifyUser, (req, res) => {
+    res.status(403).end(`PUT operation not supported on /campsites/${req.params.campsiteId}/comments`);
 })
-.delete((req, res, next) => {
+.delete(authenticate.verifyUser, (req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
         if (campsite) {
-            for (let i = (campsite.comments.length-1); i >= 0; i--) {
+            for (let i = campsite.comments.length - 1; i >= 0; i--) {
                 campsite.comments.id(campsite.comments[i]._id).deleteOne();
             }
-            campsite.save()
-            .then(campsite => {
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.json(campsite);
-            })
-            .catch(err => next(err));
+            return campsite.save();
         } else {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         }
+    })
+    .then(campsite => {
+        res.status(200).json(campsite);
     })
     .catch(err => next(err));
 });
 
+// Route for a specific comment
 campsiteRouter.route('/:campsiteId/comments/:commentId')
 .get((req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
-        if (campsite && campsite.comments.id(req.params.commentId)) {
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.json(campsite.comments.id(req.params.commentId));
+        const comment = campsite?.comments.id(req.params.commentId);
+        if (campsite && comment) {
+            res.status(200).json(comment);
         } else if (!campsite) {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         } else {
-            err = new Error(`Comment ${req.params.commentId} not found`);
+            const err = new Error(`Comment ${req.params.commentId} not found`);
             err.status = 404;
             return next(err);
         }
     })
     .catch(err => next(err));
 })
-.post((req, res) => {
-    res.statusCode = 403;
-    res.end(`POST operation not supported on /campsites/${req.params.campsiteId}/comments/${req.params.commentId}`);
+.post(authenticate.verifyUser, (req, res) => {
+    res.status(403).end(`POST operation not supported on /campsites/${req.params.campsiteId}/comments/${req.params.commentId}`);
 })
-.put((req, res, next) => {
+.put(authenticate.verifyUser, (req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
-        if (campsite && campsite.comments.id(req.params.commentId)) {
-            if (req.body.rating) {
-                campsite.comments.id(req.params.commentId).rating = req.body.rating;
+        const comment = campsite?.comments.id(req.params.commentId);
+        if (campsite && comment) {
+            if (comment.author.toString() !== req.user._id.toString()) {
+                const err = new Error('You are not authorized to edit this comment');
+                err.status = 403;
+                return next(err);
             }
-            if (req.body.text) {
-                campsite.comments.id(req.params.commentId).text = req.body.text;
-            }
-            campsite.save()
-            .then(campsite => {
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.json(campsite);
-            })
-            .catch(err => next(err));
+            if (req.body.rating) comment.rating = req.body.rating;
+            if (req.body.text) comment.text = req.body.text;
+            return campsite.save();
         } else if (!campsite) {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         } else {
-            err = new Error(`Comment ${req.params.commentId} not found`);
+            const err = new Error(`Comment ${req.params.commentId} not found`);
             err.status = 404;
             return next(err);
         }
     })
+    .then(campsite => {
+        res.status(200).json(campsite);
+    })
     .catch(err => next(err));
 })
-.delete((req, res, next) => {
+.delete(authenticate.verifyUser, (req, res, next) => {
     Campsite.findById(req.params.campsiteId)
     .then(campsite => {
-        if (campsite && campsite.comments.id(req.params.commentId)) {
-            campsite.comments.id(req.params.commentId).deleteOne();
-            campsite.save()
-            .then(campsite => {
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.json(campsite);
-            })
-            .catch(err => next(err));
+        const comment = campsite?.comments.id(req.params.commentId);
+        if (campsite && comment) {
+            if (comment.author.toString() !== req.user._id.toString()) {
+                const err = new Error('You are not authorized to delete this comment');
+                err.status = 403;
+                return next(err);
+            }
+            comment.deleteOne();
+            return campsite.save();
         } else if (!campsite) {
-            err = new Error(`Campsite ${req.params.campsiteId} not found`);
+            const err = new Error(`Campsite ${req.params.campsiteId} not found`);
             err.status = 404;
             return next(err);
         } else {
-            err = new Error(`Comment ${req.params.commentId} not found`);
+            const err = new Error(`Comment ${req.params.commentId} not found`);
             err.status = 404;
             return next(err);
         }
+    })
+    .then(campsite => {
+        res.status(200).json(campsite);
     })
     .catch(err => next(err));
 });
