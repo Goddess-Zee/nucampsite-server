@@ -1,10 +1,16 @@
-
-
 const express = require('express');
 const User = require('../models/user');
-
+const passportLocalMongoose = require('passport-local-mongoose');
 const router = express.Router();
 
+const userSchema = new Schema({
+    admin: {
+        type: Boolean,
+        default: false
+    }
+});
+
+userSchema.plugin(passportLocalMongoose);
 /* GET users listing. */
 router.get('/', function(req, res, next) {
     res.send('respond with a resource');
