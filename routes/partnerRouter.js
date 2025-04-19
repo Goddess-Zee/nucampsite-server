@@ -1,5 +1,6 @@
 const express = require('express');
 const Partner = require('../models/partner');
+const authenticate = require('../authenticate');
 
 const partnerRouter = express.Router();
 
@@ -9,7 +10,7 @@ partnerRouter.route('/')
     .then(partners => res.json(partners))
     .catch(err => next(err));
 })
-.post((req, res, next) => {
+.post(authenticate.verifyUser, authenticate.verifyAdmin, (req, res, next) => {
     Partner.create(req.body)
     .then(partner => res.status(201).json(partner))
     .catch(err => next(err));
@@ -17,7 +18,7 @@ partnerRouter.route('/')
 .put((req, res) => {
     res.status(403).send('PUT not supported on /partners');
 })
-.delete((req, res, next) => {
+.delete(authenticate.verifyUser, authenticate.verifyAdmin, (req, res, next) => {
     Partner.deleteMany()
     .then(result => res.json(result))
     .catch(err => next(err));
@@ -35,12 +36,12 @@ partnerRouter.route('/:partnerId')
 .post((req, res) => {
     res.status(403).send('POST not supported on /partners/:partnerId');
 })
-.put((req, res, next) => {
+.put(authenticate.verifyUser, authenticate.verifyAdmin, (req, res, next) => {
     Partner.findByIdAndUpdate(req.params.partnerId, { $set: req.body }, { new: true })
     .then(updated => res.json(updated))
     .catch(err => next(err));
 })
-.delete((req, res, next) => {
+.delete(authenticate.verifyUser, authenticate.verifyAdmin, (req, res, next) => {
     Partner.findByIdAndDelete(req.params.partnerId)
     .then(result => res.json(result))
     .catch(err => next(err));

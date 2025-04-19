@@ -3,88 +3,88 @@
 /**
  * Module dependencies.
  */
-
-var app = require('../app');
-var debug = require('debug')('nucampsiteserver:server');
-var http = require('http');
+const app = require('../app');
+const debug = require('debug')('nucampsiteserver:server');
+const http = require('http');
+const https = require('https');
+const fs = require('fs');
 
 /**
  * Get port from environment and store in Express.
  */
-
-var port = normalizePort(process.env.PORT || '3000');
+const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
+app.set('secPort', port + 443);  // HTTPS Port
 
 /**
  * Create HTTP server.
  */
-
-var server = http.createServer(app);
+const server = http.createServer(app);
 
 /**
- * Listen on provided port, on all network interfaces.
+ * Create HTTPS server.
  */
+const options = {
+  key: fs.readFileSync(__dirname + '/../server.key'),
+  cert: fs.readFileSync(__dirname + '/../server.cert')
+};
+const secureServer = https.createServer(options, app);
 
+/**
+ * Listen on provided ports, on all network interfaces.
+ */
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
 
+secureServer.listen(app.get('secPort'), () => {
+  console.log('Secure server listening on port', app.get('secPort'));
+});
+secureServer.on('error', onError);
+secureServer.on('listening', onSecureListening);
+
 /**
  * Normalize a port into a number, string, or false.
  */
-
 function normalizePort(val) {
-  var port = parseInt(val, 10);
-
-  if (isNaN(port)) {
-    // named pipe
-    return val;
-  }
-
-  if (port >= 0) {
-    // port number
-    return port;
-  }
-
+  const port = parseInt(val, 10);
+  if (isNaN(port)) return val;
+  if (port >= 0) return port;
   return false;
 }
 
 /**
- * Event listener for HTTP server "error" event.
+ * Error handler
  */
-
 function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
-
-  var bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
-
-  // handle specific listen errors with friendly messages
+  if (error.syscall !== 'listen') throw error;
+  const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
   switch (error.code) {
     case 'EACCES':
       console.error(bind + ' requires elevated privileges');
       process.exit(1);
-      break;
     case 'EADDRINUSE':
       console.error(bind + ' is already in use');
       process.exit(1);
-      break;
     default:
       throw error;
   }
 }
 
 /**
- * Event listener for HTTP server "listening" event.
+ * HTTP Listening handler
  */
-
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+  const addr = server.address();
+  const bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
+  debug('HTTP Listening on ' + bind);
+}
+
+/**
+ * HTTPS Listening handler
+ */
+function onSecureListening() {
+  const addr = secureServer.address();
+  const bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
+  debug('HTTPS Listening on ' + bind);
 }
